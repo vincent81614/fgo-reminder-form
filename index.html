@@ -343,7 +343,10 @@
   "use strict";
 
   var tg = window.Telegram && window.Telegram.WebApp;
-  var inTelegram = !!(tg && tg.initData);
+  // 不能看 initData：從鍵盤按鈕開的表單（我們用的就是這種）initData 是空的，
+  // 只有 inline 按鈕開的才有。platform 則是 Telegram 啟動時一定會帶的參數，
+  // 在 Telegram 外面固定是 "unknown"。
+  var inTelegram = !!(tg && tg.platform && tg.platform !== "unknown");
   if (inTelegram) document.documentElement.classList.add("tg");
 
   var q = new URLSearchParams(location.search);
