@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>新增提醒</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  /* 顏色一律先用 Telegram 給的主題變數；--fb-* 只是沒有 Telegram 時的備援。
+     深色模式只換備援值，絕不直接改 --bg 這些——否則會蓋掉 Telegram 的主題。 */
+  :root {
+    --fb-bg: #ffffff; --fb-sec: #f0f1f4; --fb-card: #ffffff; --fb-text: #15171a;
+    --fb-hint: #8b919a; --fb-accent: #2d7be0; --fb-on-accent: #ffffff; --fb-danger: #e0483e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fb-bg: #17191d; --fb-sec: #0f1113; --fb-card: #1d2025; --fb-text: #eceef1;
+      --fb-hint: #8a9099; --fb-accent: #5aa0ff; --fb-on-accent: #0b1220; --fb-danger: #ff6b61;
+    }
+  }
+  :root {
+    --bg: var(--tg-theme-bg-color, var(--fb-bg));
+    --sec: var(--tg-theme-secondary-bg-color, var(--fb-sec));
+    --card: var(--tg-theme-section-bg-color, var(--fb-card));
+    --text: var(--tg-theme-text-color, var(--fb-text));
+    --hint: var(--tg-theme-hint-color, var(--fb-hint));
+    --accent: var(--tg-theme-button-color, var(--fb-accent));
+    --on-accent: var(--tg-theme-button-text-color, var(--fb-on-accent));
+    --danger: var(--tg-theme-destructive-text-color, var(--fb-danger));
+    --line: rgba(128, 134, 145, .22);
+    --accent-soft: rgba(45, 123, 224, .12);
+    --accent-grid: rgba(45, 123, 224, .07);
+    --mono: "Martian Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --sans: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --r: 14px;
+    color-scheme: light dark;
+  }
+  @supports (color: color-mix(in srgb, red 50%, blue)) {
+    :root {
+      --line: color-mix(in srgb, var(--hint) 28%, transparent);
+      --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+      --accent-grid: color-mix(in srgb, var(--accent) 9%, transparent);
+    }
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: var(--sec);
+    color: var(--text);
+    font: 15px/1.5 var(--sans);
+    padding: 0 0 calc(24px + env(safe-area-inset-bottom));
+    min-height: 100vh;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 16px; }
+
+  /* ---- 頁首：淡淡的方格紙 ---- */
+  .hero {
+    position: relative;
+    padding: 22px 16px 58px;
+    background:
+      linear-gradient(var(--accent-grid) 1px, transparent 1px) 0 0 / 18px 18px,
+      linear-gradient(90deg, var(--accent-grid) 1px, transparent 1px) 0 0 / 18px 18px,
+      var(--bg);
+    -webkit-mask-image: linear-gradient(#000 70%, transparent);
+            mask-image: linear-gradient(#000 70%, transparent);
+  }
+  .hero .wrap { padding: 0; }
+  .eyebrow { margin: 0; color: var(--hint); font-size: 13px; letter-spacing: .02em; }
+  .eyebrow b { color: var(--text); font-weight: 600; }
+  h1 { margin: 2px 0 0; font-size: 26px; line-height: 1.25; letter-spacing: .01em; }
+
+  /* ---- 票券預覽 ---- */
+  .ticket {
+    position: relative;
+    margin: -44px 0 18px;
+    padding: 16px 18px 14px;
+    border-radius: var(--r);
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 10px 28px -14px var(--accent);
+    -webkit-mask:
+      radial-gradient(circle 9px at 0 62%, transparent 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 9px at 100% 62%, transparent 98%, #000) right / 51% 100% no-repeat;
+            mask:
+      radial-gradient(circle 9px at 0 62%, transparent 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 9px at 100% 62%, transparent 98%, #000) right / 51% 100% no-repeat;
+  }
+  .ticket-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .ticket-time {
+    font-family: var(--mono); font-weight: 700; font-size: 34px; line-height: 1;
+    letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  }
+  .ticket-kind {
+    font-size: 12px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid currentColor; opacity: .85; white-space: nowrap;
+  }
+  .ticket-rule { margin-top: 8px; font-size: 14px; opacity: .92; }
+  .ticket-cut { margin: 12px -2px 10px; border-top: 1.5px dashed currentColor; opacity: .35; }
+  .ticket-title { font-size: 16px; font-weight: 600; word-break: break-word; min-height: 1.5em; }
+  .ticket-title.empty { opacity: .55; font-weight: 400; }
+  .flash { animation: flash .35s ease; }
+  @keyframes flash { 0% { transform: scale(1); } 40% { transform: scale(1.012); } 100% { transform: scale(1); } }
+
+  /* ---- 區塊 ---- */
+  .card {
+    background: var(--card);
+    border-radius: var(--r);
+    padding: 14px 14px 16px;
+    margin-bottom: 12px;
+  }
+  .label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 0 2px 10px; font-size: 13px; color: var(--hint);
+  }
+  .label .aside { font-size: 12px; }
+
+  textarea {
+    width: 100%; min-height: 64px; max-height: 160px; resize: none;
+    border: 1.5px solid var(--line); border-radius: 11px;
+    background: var(--bg); padding: 10px 12px; font-size: 16px; line-height: 1.45;
+    outline: none; transition: border-color .15s;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  /* ---- 分段切換 ---- */
+  .seg {
+    position: relative; display: grid; grid-template-columns: repeat(3, 1fr);
+    background: var(--sec); border-radius: 11px; padding: 3px;
+  }
+  .seg-thumb {
+    position: absolute; top: 3px; bottom: 3px; left: 3px;
+    width: calc((100% - 6px) / 3); border-radius: 9px; background: var(--card);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    transition: transform .28s cubic-bezier(.3,.7,.2,1);
+  }
+  .seg button {
+    position: relative; z-index: 1; border: 0; background: none;
+    padding: 9px 4px; border-radius: 9px; font-size: 14px; color: var(--hint);
+    transition: color .2s;
+  }
+  .seg button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+  .seg-note { margin: 10px 2px 0; font-size: 12.5px; color: var(--hint); }
+
+  .panel[hidden] { display: none; }
+  .panel { animation: rise .3s ease both; }
+
+  /* ---- 小膠囊 ---- */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  .chip {
+    border: 1.5px solid var(--line); background: var(--bg);
+    padding: 6px 12px; border-radius: 999px; font-size: 13.5px;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .chip.mono { font-family: var(--mono); font-size: 12.5px; letter-spacing: -.01em; }
+  .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .chip:active { transform: scale(.96); }
+
+  /* ---- 日期／時間輸入 ---- */
+  .field {
+    display: flex; align-items: center; gap: 10px;
+    border: 1.5px solid var(--line); border-radius: 11px; background: var(--bg);
+    padding: 4px 6px 4px 12px;
+  }
+  .field:focus-within { border-color: var(--accent); }
+  .field input {
+    flex: 1; min-width: 0; border: 0; outline: none; background: none;
+    padding: 8px 0; font-size: 16px;
+  }
+  .field .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .field .dow { color: var(--hint); font-size: 13px; white-space: nowrap; padding-right: 6px; }
+
+  .time-field input { font-size: 30px; font-weight: 600; letter-spacing: -.02em; padding: 4px 0; }
+
+  /* ---- 天數步進器 ---- */
+  .stepper { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 8px; margin-top: 12px; }
+  .stepper button {
+    height: 46px; border-radius: 11px; border: 1.5px solid var(--line);
+    background: var(--bg); font-size: 22px; line-height: 1;
+  }
+  .stepper button:disabled { opacity: .35; }
+  .stepper .num { text-align: center; }
+  .stepper .num b { font-family: var(--mono); font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
+  .stepper .num span { color: var(--hint); font-size: 13px; margin-left: 4px; }
+  .range-note { margin: 10px 2px 0; font-size: 13px; color: var(--hint); text-align: center; }
+
+  /* ---- 每月日期格 ---- */
+  /* minmax(0, 1fr)：不然「月底」那格的文字寬度會把整個格子撐出螢幕 */
+  .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  /* 不能加 min-height：搭配 aspect-ratio 會把寬度一起撐大，320px 的手機上格子會互相重疊 */
+  @media (max-width: 360px) { .days { gap: 4px; } }
+  .day {
+    aspect-ratio: 1 / 1; border-radius: 10px;
+    border: 1.5px solid var(--line); background: var(--bg);
+    font-family: var(--mono); font-size: 14px; font-weight: 600;
+    display: grid; place-items: center; padding: 0;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .day.tail { color: var(--hint); }
+  .day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .day.last {
+    grid-column: span 4; aspect-ratio: auto; font-family: var(--sans); font-size: 14px;
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+    column-gap: 6px; line-height: 1.2; padding: 2px 4px; min-width: 0;
+  }
+  .day.last small { font-size: 11px; opacity: .7; font-weight: 400; }
+  .day:active { transform: scale(.94); }
+
+  .warn {
+    margin: 12px 2px 0; padding: 9px 11px; border-radius: 10px; font-size: 13px;
+    background: var(--accent-soft); color: var(--text);
+  }
+  .warn[hidden] { display: none; }
+
+  .problem { margin: 12px 2px 0; font-size: 13px; color: var(--danger); min-height: 1.2em; }
+
+  /* ---- 瀏覽器預覽用的送出鈕（Telegram 裡用原生 MainButton） ---- */
+  .preview-bar { display: none; }
+  html:not(.tg) .preview-bar { display: block; }
+  .preview-note { font-size: 12.5px; color: var(--hint); margin: 14px 2px 10px; text-align: center; }
+  .submit {
+    width: 100%; border: 0; border-radius: 12px; padding: 14px;
+    background: var(--accent); color: var(--on-accent); font-size: 16px; font-weight: 600;
+  }
+  .submit:disabled { opacity: .4; }
+  pre.payload {
+    white-space: pre-wrap; word-break: break-all; font: 12px/1.5 var(--mono);
+    background: var(--card); border-radius: 10px; padding: 12px; margin-top: 12px;
+  }
+  pre.payload:empty { display: none; }
+
+  /* ---- 進場 ---- */
+  .reveal { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; }
+  .reveal:nth-child(1) { animation-delay: .02s; }
+  .reveal:nth-child(2) { animation-delay: .07s; }
+  .reveal:nth-child(3) { animation-delay: .12s; }
+  .reveal:nth-child(4) { animation-delay: .17s; }
+  .reveal:nth-child(5) { animation-delay: .22s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">發到 <b id="group">群組</b></p>
+      <h1>新增提醒</h1>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="ticket reveal" id="ticket" aria-live="polite">
+      <div class="ticket-top">
+        <div class="ticket-time" id="rTime">08:00</div>
+        <div class="ticket-kind" id="rKind">每天</div>
+      </div>
+      <div class="ticket-rule" id="rRule"></div>
+      <div class="ticket-cut"></div>
+      <div class="ticket-title empty" id="rTitle">提醒內容會出現在這裡</div>
+    </section>
+
+    <div>
+      <section class="card reveal">
+        <div class="label"><span>提醒內容</span><span class="aside" id="count">0 / 200</span></div>
+        <textarea id="title" maxlength="200" rows="2" placeholder="例：網頁簽到記得去領獎勵" enterkeyhint="done"></textarea>
+      </section>
+
+      <section class="card reveal">
+        <div class="label"><span>多久提醒一次</span></div>
+        <div class="seg" role="group" aria-label="提醒類型">
+          <div class="seg-thumb" id="thumb"></div>
+          <button type="button" data-kind="daily" aria-pressed="true">每天</button>
+          <button type="button" data-kind="once" aria-pressed="false">單次</button>
+          <button type="button" data-kind="monthly" aria-pressed="false">每月</button>
+        </div>
+        <p class="seg-note" id="segNote"></p>
+      </section>
+
+      <section class="card reveal panel" id="p-daily">
+        <div class="label"><span>從哪天開始</span></div>
+        <label class="field">
+          <input type="date" id="start" class="mono" aria-label="開始日期">
+          <span class="dow" id="startDow"></span>
+        </label>
+        <div class="chips" id="startChips"></div>
+
+        <div class="label" style="margin-top:18px"><span>持續幾天</span></div>
+        <div class="stepper">
+          <button type="button" id="minus" aria-label="少一天">−</button>
+          <div class="num"><b id="daysNum">7</b><span>天</span></div>
+          <button type="button" id="plus" aria-label="多一天">+</button>
+        </div>
+        <div class="chips" id="dayChips" style="justify-content:center"></div>
+        <p class="range-note" id="rangeNote"></p>
+      </section>
+
+      <section class="card reveal panel" id="p-once" hidden>
+        <div class="label"><span>哪一天</span></div>
+        <label class="field">
+          <input type="date" id="date" class="mono" aria-label="提醒日期">
+          <span class="dow" id="dateDow"></span>
+        </label>
+        <div class="chips" id="dateChips"></div>
+      </section>
+
+      <section class="card reveal panel" id="p-monthly" hidden>
+        <div class="label"><span>每月哪幾天</span><span class="aside" id="mCount">可以複選</span></div>
+        <div class="days" id="days"></div>
+        <div class="chips">
+          <button type="button" class="chip" id="preset17">1–7 號</button>
+          <button type="button" class="chip" id="presetClear">清除</button>
+        </div>
+        <p class="warn" id="tailWarn" hidden>小月沒有 29–31 號，那幾個月會跳過。要每個月最後一天都提醒，請點「月底」。</p>
+      </section>
+
+      <section class="card reveal">
+        <div class="label"><span>幾點提醒</span></div>
+        <label class="field time-field">
+          <input type="time" id="time" class="mono" aria-label="提醒時間">
+        </label>
+        <div class="chips" id="timeChips"></div>
+        <p class="problem" id="problem" role="status"></p>
+      </section>
+    </div>
+
+    <div class="preview-bar">
+      <p class="preview-note">這是瀏覽器預覽。請從 Telegram 私訊裡的「📝 開啟提醒表單」按鈕開啟，才能真的建立提醒。</p>
+      <button type="button" class="submit" id="previewSubmit">建立提醒</button>
+      <pre class="payload" id="payload"></pre>
+    </div>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var inTelegram = !!(tg && tg.initData);
+  if (inTelegram) document.documentElement.classList.add("tg");
+
+  var q = new URLSearchParams(location.search);
+  var CHAT = Number(q.get("chat"));
+  var GROUP = q.get("g") || "群組";
+  var TZ = q.get("tz") || "Asia/Taipei";
+  var MAX_DAYS = Math.min(Math.max(Number(q.get("max")) || 365, 1), 365);
+  var DEFAULT_TIME = /^([01]\d|2[0-3]):[0-5]\d$/.test(q.get("t") || "") ? q.get("t") : "08:00";
+  var LAST_DAY = -1;
+  var WEEK = "日一二三四五六";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+
+  // ---- 時區內的「今天」與「現在」：不能用手機時區，要跟 bot 同一個時區 ----
+  function zoned() {
+    try {
+      var parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).formatToParts(new Date());
+      var p = {};
+      parts.forEach(function (x) { p[x.type] = x.value; });
+      return { date: p.year + "-" + p.month + "-" + p.day, time: p.hour + ":" + p.minute };
+    } catch (e) {
+      var d = new Date();
+      return {
+        date: d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()),
+        time: pad(d.getHours()) + ":" + pad(d.getMinutes())
+      };
+    }
+  }
+
+  function toDate(iso) { return new Date(iso + "T00:00:00Z"); }
+  function toISO(d) { return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate()); }
+  function addDays(iso, n) { var d = toDate(iso); d.setUTCDate(d.getUTCDate() + n); return toISO(d); }
+  function validISO(iso) { return /^\d{4}-\d{2}-\d{2}$/.test(iso || "") && !isNaN(toDate(iso)); }
+  function dow(iso) { return "週" + WEEK[toDate(iso).getUTCDay()]; }
+  // 跨年要帶年份，不然「1/5」會被看成今年
+  function md(iso) {
+    var d = toDate(iso), today = toDate(zoned().date);
+    var s = (d.getUTCMonth() + 1) + "/" + d.getUTCDate();
+    return d.getUTCFullYear() !== today.getUTCFullYear() ? d.getUTCFullYear() + "/" + s : s;
+  }
+  function mdw(iso) { return md(iso) + "（" + WEEK[toDate(iso).getUTCDay()] + "）"; }
+
+  function formatMonthDays(set) {
+    var nums = Array.from(set).filter(function (d) { return d !== LAST_DAY; }).sort(function (a, b) { return a - b; });
+    var chunks = [], i = 0;
+    while (i < nums.length) {
+      var j = i;
+      while (j + 1 < nums.length && nums[j + 1] === nums[j] + 1) j++;
+      if (j === i) chunks.push(String(nums[i]));
+      else if (j === i + 1) chunks.push(nums[i] + "、" + nums[j]);
+      else chunks.push(nums[i] + "–" + nums[j]);
+      i = j + 1;
+    }
+    var hasLast = set.has(LAST_DAY);
+    if (!chunks.length) return hasLast ? "月底" : "";
+    return chunks.join("、") + " 號" + (hasLast ? "與月底" : "");
+  }
+
+  // 跟 bot 端 skips_month_end 同一套判斷
+  function skipsMonthEnd(set) {
+    if (set.has(LAST_DAY) || [28, 29, 30, 31].every(function (d) { return set.has(d); })) return false;
+    return [29, 30, 31].some(function (d) { return set.has(d); });
+  }
+
+  function haptic() {
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged(); } catch (e) {}
+  }
+
+  // ---- 狀態 ----
+  var today = zoned().date;
+  var state = {
+    kind: "daily",
+    title: "",
+    time: DEFAULT_TIME,
+    start: today,
+    days: 7,
+    date: today,
+    mdays: new Set()
+  };
+
+  $("group").textContent = GROUP;
+
+  // ---- 內容 ----
+  var titleEl = $("title");
+  function autosize() {
+    titleEl.style.height = "auto";
+    titleEl.style.height = Math.min(titleEl.scrollHeight + 3, 160) + "px";
+  }
+  titleEl.addEventListener("input", function () {
+    state.title = titleEl.value;
+    $("count").textContent = titleEl.value.length + " / 200";
+    autosize();
+    if (inTelegram && tg.enableClosingConfirmation && tg.isVersionAtLeast && tg.isVersionAtLeast("6.2")) {
+      if (state.title.trim()) tg.enableClosingConfirmation(); else tg.disableClosingConfirmation();
+    }
+    render();
+  });
+  titleEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); titleEl.blur(); }
+  });
+
+  // ---- 類型 ----
+  var KINDS = ["daily", "once", "monthly"];
+  var NOTES = {
+    daily: "連續幾天、每天同一個時間提醒，期間跑完就自動從清單消失。",
+    once: "只提醒一次。",
+    monthly: "每個月固定幾號提醒，不會過期，要停再用 /del 刪掉。"
+  };
+  var segButtons = document.querySelectorAll(".seg button");
+  segButtons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (state.kind === b.dataset.kind) return;
+      state.kind = b.dataset.kind;
+      haptic();
+      render(true);
+    });
+  });
+
+  // ---- 每天：開始日、天數 ----
+  var startEl = $("start");
+  startEl.min = today;
+  startEl.addEventListener("change", function () { if (validISO(startEl.value)) state.start = startEl.value; render(); });
+  makeChips($("startChips"), [["今天", 0], ["明天", 1], ["後天", 2]], function (v) {
+    state.start = addDays(zoned().date, v); render();
+  }, function (v) { return state.start === addDays(zoned().date, v); });
+
+  function setDays(n) { state.days = Math.min(Math.max(n, 1), MAX_DAYS); render(); }
+  $("minus").addEventListener("click", function () { haptic(); setDays(state.days - 1); });
+  $("plus").addEventListener("click", function () { haptic(); setDays(state.days + 1); });
+  makeChips($("dayChips"), [[3, 3], [7, 7], [14, 14], [30, 30]].filter(function (x) { return x[1] <= MAX_DAYS; })
+    .map(function (x) { return [x[0] + " 天", x[1]]; }), setDays, function (v) { return state.days === v; });
+
+  // ---- 單次：日期 ----
+  var dateEl = $("date");
+  dateEl.min = today;
+  dateEl.addEventListener("change", function () { if (validISO(dateEl.value)) state.date = dateEl.value; render(); });
+  makeChips($("dateChips"), [["今天", 0], ["明天", 1], ["後天", 2]], function (v) {
+    state.date = addDays(zoned().date, v); render();
+  }, function (v) { return state.date === addDays(zoned().date, v); });
+
+  // ---- 每月：日期格 ----
+  var daysEl = $("days");
+  for (var d = 1; d <= 31; d++) daysEl.appendChild(dayButton(d, String(d)));
+  daysEl.appendChild(dayButton(LAST_DAY, "月底<small>28–31 自動判斷</small>"));
+  function dayButton(value, html) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "day" + (value === LAST_DAY ? " last" : "") + (value > 28 ? " tail" : "");
+    b.innerHTML = html;
+    b.dataset.day = value;
+    b.setAttribute("aria-pressed", "false");
+    b.setAttribute("aria-label", value === LAST_DAY ? "每月最後一天" : value + " 號");
+    b.addEventListener("click", function () {
+      if (state.mdays.has(value)) state.mdays.delete(value); else state.mdays.add(value);
+      haptic();
+      render();
+    });
+    return b;
+  }
+  $("preset17").addEventListener("click", function () {
+    state.mdays = new Set([1, 2, 3, 4, 5, 6, 7]); haptic(); render();
+  });
+  $("presetClear").addEventListener("click", function () { state.mdays = new Set(); haptic(); render(); });
+
+  // ---- 時間 ----
+  var timeEl = $("time");
+  timeEl.value = state.time;
+  timeEl.addEventListener("input", function () { if (timeEl.value) { state.time = timeEl.value.slice(0, 5); render(); } });
+  var timePresets = [DEFAULT_TIME, "08:00", "12:00", "20:00", "23:00"]
+    .filter(function (t, i, a) { return a.indexOf(t) === i; });
+  makeChips($("timeChips"), timePresets.map(function (t) { return [t, t]; }), function (t) {
+    state.time = t; timeEl.value = t; render();
+  }, function (t) { return state.time === t; }, true);
+
+  function makeChips(host, items, onPick, isOn, mono) {
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip" + (mono ? " mono" : "");
+      b.textContent = it[0];
+      b.addEventListener("click", function () { haptic(); onPick(it[1]); });
+      b._isOn = function () { return isOn(it[1]); };
+      host.appendChild(b);
+    });
+  }
+
+  // ---- 驗證（bot 端會再驗一次，這裡只是讓人當下就知道哪裡不對） ----
+  function problem() {
+    var now = zoned();
+    if (!isFinite(CHAT) || CHAT >= 0) return "這個表單不是從群組點進來的，請回群組打 /form 重新開啟。";
+    if (!state.title.trim()) return "寫一下提醒內容就能建立。";
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(state.time)) return "時間格式不對。";
+    if (state.kind === "daily") {
+      if (!validISO(state.start)) return "選一下從哪天開始。";
+      if (addDays(state.start, state.days - 1) < now.date) return "這段期間整段都已經過去了。";
+    }
+    if (state.kind === "once") {
+      if (!validISO(state.date)) return "選一下哪一天。";
+      if (state.date < now.date) return "這一天已經過去了。";
+      if (state.date === now.date && state.time <= now.time) return "今天 " + state.time + " 已經過了，改個時間或日期吧。";
+    }
+    if (state.kind === "monthly" && !state.mdays.size) return "每月至少選一天。";
+    return "";
+  }
+
+  function payload() {
+    var p = { v: 1, chat: CHAT, title: state.title.trim(), hhmm: state.time, kind: state.kind };
+    if (state.kind === "daily") { p.start = state.start; p.days = state.days; }
+    if (state.kind === "once") { p.date = state.date; }
+    if (state.kind === "monthly") { p.days = Array.from(state.mdays).sort(function (a, b) { return a - b; }); }
+    return p;
+  }
+
+  // ---- 畫面 ----
+  var lastTicket = "";
+  function render(kindChanged) {
+    var idx = KINDS.indexOf(state.kind);
+    $("thumb").style.transform = "translateX(" + (idx * 100) + "%)";
+    segButtons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.kind === state.kind)); });
+    $("segNote").textContent = NOTES[state.kind];
+    KINDS.forEach(function (k) { $("p-" + k).hidden = k !== state.kind; });
+
+    startEl.value = state.start;
+    $("startDow").textContent = validISO(state.start) ? dow(state.start) : "";
+    $("daysNum").textContent = state.days;
+    $("minus").disabled = state.days <= 1;
+    $("plus").disabled = state.days >= MAX_DAYS;
+    if (validISO(state.start)) {
+      var end = addDays(state.start, state.days - 1);
+      $("rangeNote").textContent = state.days === 1
+        ? "只有 " + mdw(state.start) + " 一天"
+        : mdw(state.start) + " → " + mdw(end);
+    }
+
+    dateEl.value = state.date;
+    $("dateDow").textContent = validISO(state.date) ? dow(state.date) : "";
+
+    Array.prototype.forEach.call(daysEl.children, function (b) {
+      b.setAttribute("aria-pressed", String(state.mdays.has(Number(b.dataset.day))));
+    });
+    $("mCount").textContent = state.mdays.size ? "已選 " + formatMonthDays(state.mdays) : "可以複選";
+    $("tailWarn").hidden = !(state.kind === "monthly" && skipsMonthEnd(state.mdays));
+
+    document.querySelectorAll(".chip").forEach(function (c) {
+      if (c._isOn) c.setAttribute("aria-pressed", String(c._isOn()));
+    });
+
+    // 票券
+    var rule = "", kindLabel = "";
+    if (state.kind === "daily") {
+      kindLabel = "每天 · " + state.days + " 天";
+      rule = validISO(state.start)
+        ? (state.days === 1 ? mdw(state.start) + "當天" : mdw(state.start) + "起，到 " + mdw(addDays(state.start, state.days - 1)))
+        : "";
+    } else if (state.kind === "once") {
+      kindLabel = "單次";
+      rule = validISO(state.date) ? mdw(state.date) : "";
+    } else {
+      kindLabel = "每月";
+      var md_ = formatMonthDays(state.mdays);
+      // 跟 bot 的顯示一致：「每月月底」「每月 1–7 號與月底」
+      rule = state.mdays.size ? "每月" + (md_.indexOf("月底") === 0 ? "" : " ") + md_ : "還沒選日期";
+    }
+    $("rTime").textContent = state.time;
+    $("rKind").textContent = kindLabel;
+    $("rRule").textContent = rule;
+    var t = state.title.trim();
+    $("rTitle").textContent = t || "提醒內容會出現在這裡";
+    $("rTitle").classList.toggle("empty", !t);
+
+    var sig = state.kind + state.time + rule;
+    if (kindChanged || (lastTicket && sig !== lastTicket)) {
+      var tk = $("ticket");
+      tk.classList.remove("flash"); void tk.offsetWidth; tk.classList.add("flash");
+    }
+    lastTicket = sig;
+
+    var why = problem();
+    // 還沒打內容時不要一開頭就用紅字罵人
+    $("problem").textContent = (why && (state.title.trim() || why.indexOf("內容") < 0)) ? why : "";
+    setSubmittable(!why, why);
+  }
+
+  // ---- 送出 ----
+  function submit() {
+    if (problem()) { render(); return; }
+    var data = JSON.stringify(payload());
+    if (!inTelegram) { $("payload").textContent = JSON.stringify(payload(), null, 2); return; }
+    try {
+      tg.sendData(data);
+    } catch (e) {
+      $("problem").textContent = "這個視窗送不出去——請用私訊裡「📝 開啟提醒表單」那顆按鈕重新開啟。";
+      try { tg.HapticFeedback.notificationOccurred("error"); } catch (e2) {}
+    }
+  }
+
+  function setSubmittable(ok) {
+    if (inTelegram) {
+      var mb = tg.MainButton;
+      var params = tg.themeParams || {};
+      mb.setParams({
+        text: "建立提醒",
+        color: ok ? (params.button_color || "#2d7be0") : (params.hint_color || "#9aa0a6"),
+        text_color: params.button_text_color || "#ffffff",
+        is_active: ok,
+        is_visible: true
+      });
+    } else {
+      $("previewSubmit").disabled = !ok;
+    }
+  }
+
+  if (inTelegram) {
+    tg.ready();
+    tg.expand();
+    tg.MainButton.onClick(submit);
+    try {
+      if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
+      if (tg.setBackgroundColor) tg.setBackgroundColor("secondary_bg_color");
+    } catch (e) {}
+    tg.onEvent && tg.onEvent("themeChanged", function () { render(); });
+  } else {
+    $("previewSubmit").addEventListener("click", submit);
+  }
+
+  autosize();
+  render();
+})();
+</script>
+</body>
+</html>
